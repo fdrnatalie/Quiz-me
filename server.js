@@ -2,6 +2,7 @@
 const http = require('http');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 const path = require('path');
 const game = require('./lib/game');
 
@@ -77,6 +78,58 @@ setInterval(() => {
   for (const c of clients) c.res.write(': ping\n\n');
 }, 25000).unref();
 
+
+// ---------- senha da apresentadora (opcional) ----------
+// Com QUIZ_PIN definido, só quem digitou a senha controla o jogo. TV e celular continuam abertos.
+const COOKIE = 'quiz_host';
+const failures = new Map(); // ip -> { n, until }
+
+const pinOf = () => String(process.env.QUIZ_PIN || '');
+
+function tokenFor(pin) {
+  return crypto.createHmac('sha256', pin).update('quiz-me-host').digest('hex');
+}
+
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+function cookieOf(req, name) {
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+  }
+  return '';
+}
+
+function isHost(req) {
+  const pin = pinOf();
+  return !pin || safeEqual(cookieOf(req, COOKIE), tokenFor(pin));
+}
+
+function clientIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+}
+
+async function login(req, res) {
+  const ip = clientIp(req);
+  const f = failures.get(ip);
+  if (f && f.n >= 5 && Date.now() < f.until) return send(res, 429, { error: 'Muitas tentativas. Espere um minuto.' });
+  const body = await readJson(req);
+  const pin = pinOf();
+  if (pin && !safeEqual(String(body.pin || ''), pin)) {
+    const cur = f && Date.now() < f.until ? f : { n: 0 };
+    failures.set(ip, { n: cur.n + 1, until: Date.now() + 60000 });
+    return send(res, 401, { error: 'Senha incorreta.' });
+  }
+  failures.delete(ip);
+  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `${COOKIE}=${pin ? tokenFor(pin) : 'open'}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`);
+  return send(res, 200, { ok: true });
+}
+
 // ---------- HTTP ----------
 function send(res, code, body, type = 'application/json; charset=utf-8') {
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
@@ -119,6 +172,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && url.pathname === '/events') {
       const role = ['host', 'tv', 'play'].includes(url.searchParams.get('role')) ? url.searchParams.get('role') : 'tv';
+      if (role === 'host' && !isHost(req)) return send(res, 401, { error: 'Senha necessária.' });
       res.writeHead(200, {
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-store',
@@ -133,7 +187,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/healthz') return send(res, 200, { ok: true });
+
+    if (req.method === 'POST' && url.pathname === '/api/login') return login(req, res);
+
     if (req.method === 'POST' && url.pathname === '/api/host') {
+      if (!isHost(req)) return send(res, 401, { error: 'Senha necessária.' });
       const body = await readJson(req);
       const error = game.applyHostAction(state, body);
       if (error) return send(res, 400, { error });
@@ -151,6 +210,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
 
+    if (req.method === 'GET' && url.pathname === '/' && !isHost(req)) return serveStatic(req, res, '/login.html');
     if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(req, res, url.pathname);
     return send(res, 405, { error: 'Método não permitido' });
   } catch (e) {
@@ -161,6 +221,7 @@ const server = http.createServer(async (req, res) => {
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Quiz rodando em http://localhost:${PORT}`);
+    if (!pinOf()) console.log('  (sem QUIZ_PIN: qualquer pessoa na rede controla o jogo. Defina QUIZ_PIN para exigir senha.)');
     console.log('  Apresentadora:  /      TV:  /tv      Celular:  /play');
     for (const u of lanUrls()) console.log(`  Na rede local:  ${u}`);
   });

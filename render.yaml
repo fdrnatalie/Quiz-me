@@ -1,0 +1,13 @@
+# Publicação no Render (https://render.com): "New > Blueprint" e escolha este repositório.
+services:
+  - type: web
+    name: quiz-me
+    runtime: node
+    plan: free
+    branch: claude/quiz-app
+    buildCommand: echo "sem dependências para instalar"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: QUIZ_PIN        # senha da apresentadora: o Render pede o valor ao criar
+        sync: false

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz — Entrar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main class="phone" style="justify-content:center;min-height:100vh">
+  <div class="brand">Quiz <span class="it">me</span></div>
+  <h1>Senha da <span class="it">apresentadora</span></h1>
+  <form id="f" style="display:flex;flex-direction:column;gap:12px">
+    <label for="pin" class="sr">Senha</label>
+    <input id="pin" class="field" type="password" autocomplete="current-password" placeholder="Senha" required autofocus>
+    <button class="btn dark" type="submit" style="min-height:56px">Entrar</button>
+    <p id="err" class="muted" role="alert" style="margin:0;color:var(--accent)" hidden></p>
+  </form>
+  <p class="muted" style="font-size:14px">Para ver o jogo na TV, abra <a href="/tv">/tv</a>. Convidados usam <a href="/play">/play</a>.</p>
+</main>
+<script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = document.getElementById('err');
+  err.hidden = true;
+  try {
+    const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: document.getElementById('pin').value }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Não foi possível entrar.');
+    location.href = '/';
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+});
+</script>
+</body>
+</html>

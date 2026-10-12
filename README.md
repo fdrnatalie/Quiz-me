@@ -44,11 +44,26 @@ navegador pede permissão para o microfone. Fale "nome, resposta"; depois de 3,5
 confirmado sozinho (ou toque em Confirmar/Cancelar). Falar a próxima pessoa confirma a anterior.
 Sem voz, digite na linha do convidado ou toque nas respostas já dadas, que viram atalhos.
 
+## Publicar na internet (iPad, TV e celulares com HTTPS)
+
+O GitHub Pages não serve (só hospeda sites estáticos), mas o Render roda este app direto do
+repositório e atualiza a cada commit. O HTTPS é necessário para o microfone funcionar no iPad/Safari.
+
+1. Crie uma conta em https://render.com e conecte o GitHub.
+2. **New > Blueprint**, escolha este repositório (o `render.yaml` já tem tudo).
+3. Quando o Render pedir `QUIZ_PIN`, digite a senha da apresentadora.
+4. Abra o endereço `https://….onrender.com` no iPad e entre com a senha. Na TV abra `/tv`; os convidados,
+   `/play`.
+
+Cuidados no plano gratuito: o serviço "dorme" após cerca de 15 minutos sem acessos (a primeira visita
+demora ~1 minuto para acordar) e o disco é temporário, então o gabarito se perde se o serviço reiniciar.
+Monte o quiz perto da hora de jogar e deixe a TV aberta. Disco persistente exige plano pago.
+
 ## Dados e segurança
 
 - O estado fica em `data/quiz.json` (ignorado pelo git) e sobrevive a reinícios.
 - A TV e o celular **nunca recebem o gabarito** antes da revelação; isso é decidido no servidor.
-- Não há login: quem acessar `/` na sua rede controla o jogo. Use em rede doméstica de confiança.
+- Sem `QUIZ_PIN`, não há login: quem acessar `/` na sua rede controla o jogo. Com `QUIZ_PIN=senha npm start`, `/` e os controles pedem a senha (TV e celular continuam abertos, e nunca recebem o gabarito).
 
 ## Testes
 
